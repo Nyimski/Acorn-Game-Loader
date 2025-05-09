@@ -1,0 +1,10 @@
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\Acorn Game Loader.exe
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\DeleteTempFiles.bat
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\Instructions.txt
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\savegame.py
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\uefplay.py
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\Acorn Game Loader.dll
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\Acorn Game Loader.deps.json
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\Acorn Game Loader.runtimeconfig.json
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\Acorn Game Loader.dll.config
+C:\Users\xnyim\Downloads\ZX-Game-Loader-master\Acorn Game Loader\bin\Release\net8.0-windows\publish\Acorn Game Loader.pdb
