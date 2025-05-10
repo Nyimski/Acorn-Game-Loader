@@ -1,6 +1,11 @@
 # Acorn Game Loader
 A comprehensive GUI application for loading Acorn Electron and BBC Micro games onto original hardware with advanced tape control and save state functionality.
 
+## Screenshot
+
+![AGL1](https://github.com/user-attachments/assets/a884ae6a-5eb8-4372-8e3f-182ed0855445)
+
+
 ## Features
 
 ### Core Functionality
