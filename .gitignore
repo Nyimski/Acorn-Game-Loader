@@ -1,0 +1,27 @@
+cat > .gitignore << 'EOF'
+# Visual Studio
+.vs/
+obj/
+bin/
+*.user
+*.suo
+*.userosscache
+*.pdb
+*.exe
+*.dll
+
+# Python
+__pycache__/
+*.pyc
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]uild/
+
+# User-specific files
+*.rsuser
+*.pubxml
+EOF
