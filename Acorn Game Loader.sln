@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35828.75
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "Acorn Game Loader", "Acorn Game Loader\Acorn Game Loader.vbproj", "{A84A15C1-2091-465A-9ACA-ABC785E8BA87}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\..\Desktop\Repo\Acorn Game Loader\Form1.Designer.vb = ..\..\..\Desktop\Repo\Acorn Game Loader\Form1.Designer.vb
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A84A15C1-2091-465A-9ACA-ABC785E8BA87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A84A15C1-2091-465A-9ACA-ABC785E8BA87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A84A15C1-2091-465A-9ACA-ABC785E8BA87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A84A15C1-2091-465A-9ACA-ABC785E8BA87}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C128CEF3-38AE-4066-9378-FA88D872BDB8}
+	EndGlobalSection
+EndGlobal
