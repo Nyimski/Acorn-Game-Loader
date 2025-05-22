@@ -3,7 +3,8 @@ A comprehensive GUI application for loading Acorn Electron and BBC Micro games o
 
 ## Screenshot
 
-![AGL1](https://github.com/user-attachments/assets/11f479d9-ec9c-4d6d-809e-e3722eaf0428)
+![AGL1](https://github.com/user-attachments/assets/91698131-8b73-4a33-8e54-0e21333c7672)
+
 
 ## Features
 
