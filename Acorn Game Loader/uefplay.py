@@ -16,7 +16,7 @@ SUPPORTED_CHUNKS = {
     0x0111: 'Carrier tone with dummy byte',
     0x0112: 'Integer gap',
     0x0114: 'Security cycles (approximate)',
-    0x0116: 'Floating point gap (approximate)'
+    0x0116: 'Floating point gap'
 }
 
 # Control file paths

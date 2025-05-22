@@ -22,6 +22,7 @@ Partial Class SettingsForm
     'Do not modify it using the code editor.
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
+        Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(SettingsForm))
         LblGamesFolder = New Label()
         LblScreenshotsFolder = New Label()
         LblManualsFolder = New Label()
@@ -142,7 +143,7 @@ Partial Class SettingsForm
         ' 
         ' SettingsForm
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(659, 239)
         Controls.Add(ChkRememberLastGame)
@@ -157,6 +158,7 @@ Partial Class SettingsForm
         Controls.Add(LblManualsFolder)
         Controls.Add(LblScreenshotsFolder)
         Controls.Add(LblGamesFolder)
+        Icon = CType(resources.GetObject("$this.Icon"), Icon)
         Name = "SettingsForm"
         Text = "Settings"
         ResumeLayout(False)

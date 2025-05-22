@@ -89,10 +89,11 @@ Public Class HelpForm
 
         ' Format section headers
         Dim sections() As String = {
-            "HOW TO USE (QUICK START)", "SETTINGS GUIDE", "SAVE/LOAD STATES (AUDIO)",
-            "APPLICATION OVERVIEW", "MAIN INTERFACE CONTROLS", "TROUBLESHOOTING",
-            "FOLDER STRUCTURE", "VERSION NOTES", "SEARCH FUNCTIONALITY",
-            "SETTINGS (Menu → Settings)", "MENU OPTIONS"
+            "HOW TO USE (QUICK START)", "SETTINGS GUIDE", "SAVE/LOAD STATES (AUDIO)", "[Tape Status]", "[Settings]",
+"[Help]",
+            "APPLICATION OVERVIEW", "MAIN INTERFACE CONTROLS", "TROUBLESHOOTING", "PLAY CONTROLS", "[Buttons]",
+            "FOLDER STRUCTURE", "VERSION NOTES", "SEARCH FUNCTIONALITY", "SAVING:", "LOADING:", "[Game List]",
+            "SETTINGS (Menu → Settings)", "MENU OPTIONS", "TAPE COUNTER", "CONTENT", "SELECT A GAME", "OPTIONS"
         }
 
         For Each section In sections
@@ -122,8 +123,8 @@ Public Class HelpForm
 
         ' Format button names and key actions
         Dim actions() As String = {
-            "PLAY", "PAUSE", "STOP", "REWIND", "FORWARD", "SET 000",
-            "SAVE", "LOAD", "SAVE", "STOP", "FORWARD", "SET 000", "Browse", "SAVE STATE", "LOAD STATE"
+            "PLAY", "PAUSE", "STOP", "REWIND", "FORWARD", "COUNTER RESET", "EJECT",
+            "SAVE", "LOAD", "SAVE", "STOP", "FORWARD", "JUMP", "Browse", "SAVE STATE", "LOAD STATE", "Current Block:", "Reset at Block"
         }
 
         For Each action In actions
