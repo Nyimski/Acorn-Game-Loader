@@ -3,8 +3,7 @@ A comprehensive GUI application for loading Acorn Electron and BBC Micro games o
 
 ## Screenshot
 
-![AGL1](https://github.com/user-attachments/assets/a884ae6a-5eb8-4372-8e3f-182ed0855445)
-
+![AGL1](https://github.com/user-attachments/assets/11f479d9-ec9c-4d6d-809e-e3722eaf0428)
 
 ## Features
 
@@ -15,13 +14,14 @@ A comprehensive GUI application for loading Acorn Electron and BBC Micro games o
 - Supports **.uef** game files
 
 ### Tape Control
-- ▶️ **Play**: Start game playback
-- ⏸️ **Pause/Resume**: Temporarily halt playback
-- ⏹️ **Stop**: End playback completely
+- ▶️ **Play**: Start/Resume game playback
+- ⏹️ **Stop**: Halt playback
+- ⏏️ **Eject**: Completely end playback
 - ⏪ **Rewind**: Move back 1 tape block
 - ⏩ **Forward**: Jump to next tape block
 - 🔢 **Block Counter**: Shows current playback position
-- 000 **Set 000**: Mark reference point (e.g., after loading screens)
+- 0️⃣ **Counter Reset**: Mark reference point (e.g., after loading screens)
+- ↪️ **Jump**: Jumps to block set by Counter Reset
 
 ### Save States
 - 💾 **Save Game Progress**:
@@ -59,13 +59,13 @@ A comprehensive GUI application for loading Acorn Electron and BBC Micro games o
 ### Playing Games
 1. Select game from list (use search to filter)
 2. View screenshot and manual
-3. Click **Play** to start
-4. Use **Pause**, **Rewind**, **Forward** as needed
+3. Click **Play** to start or resume playback (after Rewind/Forward/Stop)
+4. Use **Stop**, **Rewind**, **Forward** as needed
 
 ### Saving Progress
 1. During gameplay, click **Save**
 2. Wait for "Waiting for signal..." message
-3. Play audio from Electro/BBC Micro's EAR port
+3. Play audio from Electron/BBC Micro's EAR port
 4. Application will automatically:
    - Detect the signal
    - Save as timestamped .wav file
