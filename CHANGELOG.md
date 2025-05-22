@@ -1,6 +1,6 @@
 # Changelog
 
-## [v1.1.0] - Upcoming Release
+## [v1.1.0] - 2025-05-22
 
 ### Control Scheme Changes
 - **Revised playback controls** to better match original hardware behavior:
