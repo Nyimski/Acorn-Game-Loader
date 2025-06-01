@@ -93,7 +93,7 @@ Public Class HelpForm
 "[Help]",
             "APPLICATION OVERVIEW", "MAIN INTERFACE CONTROLS", "TROUBLESHOOTING", "PLAY CONTROLS", "[Buttons]",
             "FOLDER STRUCTURE", "VERSION NOTES", "SEARCH FUNCTIONALITY", "SAVING:", "LOADING:", "[Game List]",
-            "SETTINGS (Menu → Settings)", "MENU OPTIONS", "TAPE COUNTER", "CONTENT", "SELECT A GAME", "OPTIONS"
+            "SETTINGS (Menu → Settings)", "MENU OPTIONS", "TAPE COUNTER", "CONTENT", "SELECT A GAME", "OPTIONS", "[File]", "[Edit Mode]", "[About]"
         }
 
         For Each section In sections

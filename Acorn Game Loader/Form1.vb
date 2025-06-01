@@ -12,6 +12,14 @@ Public Class Form1
     Private _lastSelectedGame As String = String.Empty
     Private _allGames As New List(Of String)()
     Private _currentSearchTerm As String = ""
+    Private _currentImagePath As String = ""
+    Private _currentManualPath As String = ""
+    Private _editModeEnabled As Boolean = False ' Edit Mode flag
+    Private _editModeMenuItem As ToolStripMenuItem = Nothing ' Reference to the Edit Mode menu item
+
+    ' Allowed file extensions
+    Private ReadOnly _allowedImageExtensions As String() = {".png", ".jpg", ".jpeg", ".gif", ".bmp"}
+    Private ReadOnly _allowedManualExtensions As String() = {".txt"}
 
     ' Process and playback control
     Private uefPlayProcess As Process = Nothing
@@ -21,6 +29,9 @@ Public Class Form1
     Private nextBlockFilePath As String = Path.Combine(Path.GetTempPath(), "next_block.txt")
     Private saveStatusFile As String = Path.Combine(Path.GetTempPath(), "save_status.txt")
     Private saveControlFile As String = Path.Combine(Path.GetTempPath(), "save_control.txt")
+
+    ' File system watcher
+    Private WithEvents _gameFolderWatcher As FileSystemWatcher
 
     ' Counters and timers
     Private tapeCounter As Integer = 0
@@ -37,6 +48,211 @@ Public Class Form1
     Private scrollText As String = ""
     Private scrollIndex As Integer = 0
     Private Const DISPLAY_CHARS As Integer = 78
+
+    ' =============================================
+    ' Edit Mode Management
+    ' =============================================
+
+    Private Sub ToggleEditMode(enable As Boolean)
+        _editModeEnabled = enable
+        ListBox1.AllowDrop = enable
+        PictureBox1.AllowDrop = enable
+        RichTextBox1.AllowDrop = enable
+
+        If ListBox1.ContextMenuStrip IsNot Nothing Then
+            ListBox1.ContextMenuStrip.Enabled = enable
+        End If
+
+        ' Update menu item text
+        UpdateEditModeMenuText()
+    End Sub
+
+    Private Sub UpdateEditModeMenuText()
+        If _editModeMenuItem IsNot Nothing Then
+            _editModeMenuItem.Text = If(_editModeEnabled, "Editor On", "Editor Off")
+        End If
+    End Sub
+
+    Private Sub EditModeToolStripMenuItem_Click(sender As Object, e As EventArgs)
+        ToggleEditMode(Not _editModeEnabled)
+    End Sub
+
+    ' =============================================
+    ' Resource Management Methods
+    ' =============================================
+
+    Private Sub ReleaseImageResources()
+        If PictureBox1.Image IsNot Nothing Then
+            Dim oldImage = PictureBox1.Image
+            PictureBox1.Image = Nothing
+            oldImage.Dispose()
+            _currentImagePath = ""
+        End If
+    End Sub
+
+    Private Sub ReleaseManualResources()
+        RichTextBox1.Text = ""
+        _currentManualPath = ""
+    End Sub
+
+    Public Sub PrepareForFileOperation()
+        ReleaseImageResources()
+        ReleaseManualResources()
+        Application.DoEvents()
+    End Sub
+
+    ' =============================================
+    ' Safe File Operations
+    ' =============================================
+
+    Public Function SafeDeleteFile(filePath As String, Optional maxRetries As Integer = 2) As Boolean
+        For retry = 1 To maxRetries
+            Try
+                PrepareForFileOperation()
+                If File.Exists(filePath) Then
+                    File.Delete(filePath)
+                    Return True
+                End If
+                Return False
+            Catch ex As Exception When retry < maxRetries
+                Threading.Thread.Sleep(100)
+            Catch ex As Exception
+                Debug.WriteLine($"Failed to delete {filePath}: {ex.Message}")
+                Return False
+            End Try
+        Next
+        Return False
+    End Function
+
+    Public Function SafeDeleteGameImage(gameName As String) As Boolean
+        Dim success As Boolean = True
+        For Each ext In _allowedImageExtensions
+            Dim imagePath = Path.Combine(ImageFolder, gameName & ext)
+            If File.Exists(imagePath) AndAlso Not SafeDeleteFile(imagePath) Then
+                success = False
+            End If
+        Next
+        Return success
+    End Function
+
+    Public Function SafeDeleteManual(gameName As String) As Boolean
+        Dim manualPath = Path.Combine(ManualFolder, gameName & ".txt")
+        Return SafeDeleteFile(manualPath)
+    End Function
+
+    Public Function SafeRenameFile(oldPath As String, newPath As String) As Boolean
+        Try
+            PrepareForFileOperation()
+            If File.Exists(oldPath) Then
+                Directory.CreateDirectory(Path.GetDirectoryName(newPath))
+                File.Move(oldPath, newPath)
+                Return True
+            End If
+            Return False
+        Catch ex As Exception
+            Debug.WriteLine($"Failed to rename {oldPath} to {newPath}: {ex.Message}")
+            Return False
+        End Try
+    End Function
+
+    ' =============================================
+    ' Drag-and-Drop Handlers (with Edit Mode check)
+    ' =============================================
+
+    Private Sub ListBox1_DragEnter(sender As Object, e As DragEventArgs) Handles ListBox1.DragEnter
+        If Not _editModeEnabled Then
+            e.Effect = DragDropEffects.None
+            Return
+        End If
+
+        If e.Data.GetDataPresent(DataFormats.FileDrop) Then
+            Dim files() As String = CType(e.Data.GetData(DataFormats.FileDrop), String())
+            If files.Any(Function(f) Path.GetExtension(f).Equals(".uef", StringComparison.OrdinalIgnoreCase)) Then
+                e.Effect = DragDropEffects.Copy
+            Else
+                e.Effect = DragDropEffects.None
+            End If
+        Else
+            e.Effect = DragDropEffects.None
+        End If
+    End Sub
+
+    Private Sub ListBox1_DragDrop(sender As Object, e As DragEventArgs) Handles ListBox1.DragDrop
+        If Not _editModeEnabled Then Return
+
+        Dim files() As String = CType(e.Data.GetData(DataFormats.FileDrop), String())
+        If files.Length = 0 Then Return
+
+        Dim uefFiles = files.Where(Function(f) Path.GetExtension(f).Equals(".uef", StringComparison.OrdinalIgnoreCase)).ToArray()
+        If uefFiles.Length = 0 Then Return
+
+        Try
+            Dim successCount As Integer = 0
+            Dim errorMessages As New List(Of String)
+
+            For Each sourceFile In uefFiles
+                Try
+                    Dim fileName = Path.GetFileName(sourceFile)
+                    Dim destPath = Path.Combine(GameFolder, fileName)
+
+                    If File.Exists(destPath) Then
+                        Dim result = MessageBox.Show($"The file {fileName} already exists. Overwrite?",
+                                                  "File Exists",
+                                                  MessageBoxButtons.YesNo,
+                                                  MessageBoxIcon.Question)
+                        If result <> DialogResult.Yes Then
+                            Continue For
+                        End If
+                    End If
+
+                    File.Copy(sourceFile, destPath, True)
+                    successCount += 1
+                Catch ex As Exception
+                    errorMessages.Add($"Error copying {Path.GetFileName(sourceFile)}: {ex.Message}")
+                End Try
+            Next
+
+            LoadGames()
+
+            Dim message = $"{successCount} game(s) added successfully."
+            If errorMessages.Count > 0 Then
+                message += Environment.NewLine & Environment.NewLine & "Errors:" & Environment.NewLine & String.Join(Environment.NewLine, errorMessages)
+            End If
+
+            MessageBox.Show(message, "Import Complete", MessageBoxButtons.OK,
+                          If(errorMessages.Count > 0, MessageBoxIcon.Warning, MessageBoxIcon.Information))
+        Catch ex As Exception
+            MessageBox.Show($"Error processing files: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub InitializeGameFolderWatcher()
+        _gameFolderWatcher = New FileSystemWatcher() With {
+            .Path = GameFolder,
+            .NotifyFilter = NotifyFilters.FileName Or NotifyFilters.LastWrite,
+            .Filter = "*.uef",
+            .IncludeSubdirectories = True,
+            .EnableRaisingEvents = True
+        }
+    End Sub
+
+    Private Sub GameFolderWatcher_Changed(sender As Object, e As FileSystemEventArgs) Handles _gameFolderWatcher.Changed, _gameFolderWatcher.Created, _gameFolderWatcher.Deleted, _gameFolderWatcher.Renamed
+        Me.Invoke(Sub()
+                      Dim currentSelection As String = If(ListBox1.SelectedItem?.ToString(), String.Empty)
+                      Dim currentIndex As Integer = ListBox1.SelectedIndex
+
+                      LoadGames()
+
+                      If Not String.IsNullOrEmpty(currentSelection) Then
+                          Dim newIndex = ListBox1.Items.IndexOf(currentSelection)
+                          If newIndex >= 0 Then
+                              ListBox1.SelectedIndex = newIndex
+                          ElseIf currentIndex >= 0 AndAlso currentIndex < ListBox1.Items.Count Then
+                              ListBox1.SelectedIndex = currentIndex
+                          End If
+                      End If
+                  End Sub)
+    End Sub
 
     Private Sub ResetBlockLabels()
         LblTapeCounter.Text = "Current Block: 0"
@@ -80,16 +296,40 @@ Public Class Form1
         scrollIndex += 1
     End Sub
 
+    Private Sub InitializeContextMenu()
+        Dim contextMenu As New ContextMenuStrip()
+
+        Dim renameItem As New ToolStripMenuItem("Rename")
+        AddHandler renameItem.Click, AddressOf RenameGame
+        contextMenu.Items.Add(renameItem)
+
+        Dim moveItem As New ToolStripMenuItem("Move")
+        AddHandler moveItem.Click, AddressOf MoveGame
+        contextMenu.Items.Add(moveItem)
+
+        Dim deleteItem As New ToolStripMenuItem("Delete")
+        AddHandler deleteItem.Click, AddressOf DeleteGame
+        contextMenu.Items.Add(deleteItem)
+
+        ListBox1.ContextMenuStrip = contextMenu
+        contextMenu.Enabled = _editModeEnabled ' Initial state matches Edit Mode
+    End Sub
+
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.StartPosition = FormStartPosition.Manual
         Me.Location = New Point(Screen.PrimaryScreen.WorkingArea.Left, Screen.PrimaryScreen.WorkingArea.Top)
-        Me.Text = "Acorn Game Loader"
+        Me.Text = "Acorn Game Loader - v1.2.0"
         Me.Icon = New Icon(Me.GetType(), "Icon.ico")
+
+        ' Initialize with Edit Mode OFF by default
+        ToggleEditMode(False)
 
         RunDeleteTempFiles()
         ResetBlockLabels()
         InitializeMenuStrip()
         LoadSettings()
+        InitializeGameFolderWatcher()
+        InitializeContextMenu()
 
         If File.Exists(_settingsFilePath) Then
             Dim lines() As String = File.ReadAllLines(_settingsFilePath)
@@ -103,11 +343,6 @@ Public Class Form1
         AddHandler TimerResetStatus.Tick, AddressOf ResetStatusMessage
     End Sub
 
-    Private Sub ResetStatusMessage(sender As Object, e As EventArgs)
-        TimerResetStatus.Stop()
-        LblTapeStatus.Text = "Ready"
-    End Sub
-
     Private Sub InitializeMenuStrip()
         Dim menuStrip As New MenuStrip()
 
@@ -117,6 +352,13 @@ Public Class Form1
         AddHandler exitMenuItem.Click, Sub(sender, e) Me.Close()
         fileMenuItem.DropDownItems.Add(exitMenuItem)
         menuStrip.Items.Add(fileMenuItem)
+
+        ' Edit Mode menu
+        Dim editModeMenuItem As New ToolStripMenuItem("Edit Mode")
+        _editModeMenuItem = New ToolStripMenuItem("Editor Off")
+        AddHandler _editModeMenuItem.Click, AddressOf EditModeToolStripMenuItem_Click
+        editModeMenuItem.DropDownItems.Add(_editModeMenuItem)
+        menuStrip.Items.Add(editModeMenuItem)
 
         ' Settings menu
         Dim settingsMenuItem As New ToolStripMenuItem("Settings")
@@ -128,8 +370,18 @@ Public Class Form1
         AddHandler helpMenuItem.Click, AddressOf ShowFormattedHelp
         menuStrip.Items.Add(helpMenuItem)
 
+        ' About menu
+        Dim aboutMenuItem As New ToolStripMenuItem("About")
+        AddHandler aboutMenuItem.Click, AddressOf OpenAboutForm
+        menuStrip.Items.Add(aboutMenuItem)
+
         Me.Controls.Add(menuStrip)
         menuStrip.Dock = DockStyle.Top
+    End Sub
+
+    Private Sub ResetStatusMessage(sender As Object, e As EventArgs)
+        TimerResetStatus.Stop()
+        LblTapeStatus.Text = "Ready"
     End Sub
 
     Private Sub OpenSettingsForm(sender As Object, e As EventArgs)
@@ -144,6 +396,11 @@ Public Class Form1
         helpForm.ShowDialog()
     End Sub
 
+    Private Sub OpenAboutForm(sender As Object, e As EventArgs)
+        Dim helpForm As New AboutForm()
+        AboutForm.ShowDialog()
+    End Sub
+
     Private Sub LoadSettings()
         If Not File.Exists(_settingsFilePath) Then Return
 
@@ -153,6 +410,16 @@ Public Class Form1
         GameFolder = If(Path.IsPathRooted(lines(0)), lines(0), Path.Combine(Application.StartupPath, lines(0)))
         ImageFolder = If(Path.IsPathRooted(lines(1)), lines(1), Path.Combine(Application.StartupPath, lines(1)))
         ManualFolder = If(Path.IsPathRooted(lines(2)), lines(2), Path.Combine(Application.StartupPath, lines(2)))
+
+        Directory.CreateDirectory(GameFolder)
+        Directory.CreateDirectory(ImageFolder)
+        Directory.CreateDirectory(ManualFolder)
+
+        If _gameFolderWatcher Is Nothing Then
+            InitializeGameFolderWatcher()
+        Else
+            _gameFolderWatcher.Path = GameFolder
+        End If
     End Sub
 
     Private Sub LoadGames()
@@ -161,25 +428,40 @@ Public Class Form1
             Return
         End If
 
+        ' Store the current selection if it exists
+        Dim currentSelection As String = If(ListBox1.SelectedItem?.ToString(), String.Empty)
+        Dim currentIndex As Integer = ListBox1.SelectedIndex
+
         _allGames.Clear()
         _allGames.AddRange(
-            Directory.GetFiles(GameFolder, "*.uef", SearchOption.AllDirectories).
-            Select(Function(f) Path.GetFileNameWithoutExtension(f)))
+        Directory.GetFiles(GameFolder, "*.uef", SearchOption.AllDirectories).
+        Select(Function(f) Path.GetFileNameWithoutExtension(f)))
         _allGames.Sort()
 
         ApplyGameFilter()
 
-        If Not String.IsNullOrEmpty(_lastSelectedGame) Then
-            Dim index = ListBox1.Items.IndexOf(_lastSelectedGame)
-            If index >= 0 Then
-                ListBox1.SelectedIndex = index
+        ' Try to maintain selection if possible
+        If Not String.IsNullOrEmpty(currentSelection) Then
+            Dim newIndex = ListBox1.Items.IndexOf(currentSelection)
+            If newIndex >= 0 Then
+                ListBox1.SelectedIndex = newIndex
+                ' Force load the assets for the selected game
+                _lastSelectedGame = "" ' Reset to force reload
                 ListBox1_SelectedIndexChanged(ListBox1, EventArgs.Empty)
                 Return
             End If
         End If
 
         If ListBox1.Items.Count > 0 Then
-            ListBox1.SelectedIndex = 0
+            ' If we had a previous selection that's no longer available,
+            ' try to select the item at the same index if possible
+            If currentIndex >= 0 AndAlso currentIndex < ListBox1.Items.Count Then
+                ListBox1.SelectedIndex = currentIndex
+            Else
+                ListBox1.SelectedIndex = 0
+            End If
+            ' Force load the assets for the selected game
+            _lastSelectedGame = "" ' Reset to force reload
             ListBox1_SelectedIndexChanged(ListBox1, EventArgs.Empty)
         End If
     End Sub
@@ -192,14 +474,184 @@ Public Class Form1
             ListBox1.Items.AddRange(_allGames.ToArray())
         Else
             Dim searchTerms = _currentSearchTerm.ToLower().Split({" "c}, StringSplitOptions.RemoveEmptyEntries)
-            ListBox1.Items.AddRange(
-                _allGames.Where(Function(game)
-                                    Return searchTerms.All(Function(term) game.ToLower().Contains(term))
-                                End Function).ToArray())
+            Dim filteredGames = _allGames.Where(Function(game)
+                                                    Return searchTerms.All(Function(term)
+                                                                               Return game.ToLower().Contains(term)
+                                                                           End Function)
+                                                End Function).ToArray()
+            ListBox1.Items.AddRange(filteredGames)
         End If
 
         If ListBox1.Items.Count > 0 Then ListBox1.SelectedIndex = 0
         ListBox1.EndUpdate()
+    End Sub
+
+    Private Sub RenameGame(sender As Object, e As EventArgs)
+        If Not _editModeEnabled OrElse ListBox1.SelectedIndex = -1 Then Return
+
+        Dim oldName As String = ListBox1.SelectedItem.ToString()
+        Dim newName As String = InputBox("Enter new name for the game:", "Rename Game", oldName)
+
+        If String.IsNullOrWhiteSpace(newName) OrElse newName = oldName Then Return
+
+        Try
+            Dim oldUefPath As String = Directory.GetFiles(GameFolder, oldName & ".uef", SearchOption.AllDirectories).FirstOrDefault()
+            If oldUefPath Is Nothing Then
+                MessageBox.Show("Original game file not found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End If
+
+            Dim gameDirectory As String = Path.GetDirectoryName(oldUefPath)
+            Dim newUefPath As String = Path.Combine(gameDirectory, newName & ".uef")
+
+            If Not SafeRenameFile(oldUefPath, newUefPath) Then
+                MessageBox.Show("Failed to rename game file", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                Return
+            End If
+
+            For Each ext In _allowedImageExtensions
+                Dim oldImagePath As String = Path.Combine(ImageFolder, oldName & ext)
+                If File.Exists(oldImagePath) Then
+                    SafeRenameFile(oldImagePath, Path.Combine(ImageFolder, newName & ext))
+                End If
+            Next
+
+            Dim oldManualPath As String = Path.Combine(ManualFolder, oldName & ".txt")
+            If File.Exists(oldManualPath) Then
+                SafeRenameFile(oldManualPath, Path.Combine(ManualFolder, newName & ".txt"))
+            End If
+
+            LoadGames()
+
+            Dim newIndex As Integer = ListBox1.Items.IndexOf(newName)
+            If newIndex >= 0 Then
+                ListBox1.SelectedIndex = newIndex
+            End If
+
+            MessageBox.Show("Game renamed successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Catch ex As Exception
+            MessageBox.Show($"Error renaming game: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    Private Sub MoveGame(sender As Object, e As EventArgs)
+        If Not _editModeEnabled OrElse ListBox1.SelectedIndex = -1 Then Return
+
+        Dim gameName As String = ListBox1.SelectedItem.ToString()
+        Dim oldUefPath As String = Directory.GetFiles(GameFolder, gameName & ".uef", SearchOption.AllDirectories).FirstOrDefault()
+
+        If oldUefPath Is Nothing Then
+            MessageBox.Show("Game file not found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
+        Using folderDialog As New FolderBrowserDialog()
+            folderDialog.Description = "Select destination folder for the game"
+            folderDialog.SelectedPath = GameFolder
+
+            If folderDialog.ShowDialog() = DialogResult.OK Then
+                Try
+                    If folderDialog.SelectedPath = Path.GetDirectoryName(oldUefPath) Then
+                        MessageBox.Show("Game is already in the selected folder.", "Information", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                        Return
+                    End If
+
+                    Directory.CreateDirectory(folderDialog.SelectedPath)
+
+                    Dim newUefPath As String = Path.Combine(folderDialog.SelectedPath, gameName & ".uef")
+                    If Not SafeRenameFile(oldUefPath, newUefPath) Then
+                        MessageBox.Show("Failed to move game file", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                        Return
+                    End If
+
+                    LoadGames()
+
+                    Dim newIndex As Integer = ListBox1.Items.IndexOf(gameName)
+                    If newIndex >= 0 Then
+                        ListBox1.SelectedIndex = newIndex
+                    End If
+
+                    MessageBox.Show("Game moved successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                Catch ex As Exception
+                    MessageBox.Show($"Error moving game: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                End Try
+            End If
+        End Using
+    End Sub
+
+    Private Sub DeleteGame(sender As Object, e As EventArgs)
+        If Not _editModeEnabled OrElse ListBox1.SelectedIndex = -1 Then Return
+
+        Dim gameName As String = ListBox1.SelectedItem.ToString()
+        Dim uefPath As String = Directory.GetFiles(GameFolder, gameName & ".uef", SearchOption.AllDirectories).FirstOrDefault()
+        Dim currentIndex As Integer = ListBox1.SelectedIndex ' Store current index before deletion
+
+        If uefPath Is Nothing Then
+            MessageBox.Show("Game file not found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
+        Dim result As DialogResult = MessageBox.Show(
+        $"Are you sure you want to delete '{gameName}'?" & Environment.NewLine &
+        "This will move the game file and associated files to the Recycle Bin." & Environment.NewLine &
+        "This action cannot be undone!",
+        "Confirm Deletion",
+        MessageBoxButtons.OKCancel,
+        MessageBoxIcon.Warning,
+        MessageBoxDefaultButton.Button2)
+
+        If result <> DialogResult.OK Then Return
+
+        Try
+            PrepareForFileOperation()
+            Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+            uefPath,
+            Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+            Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin)
+
+            ' Delete image files (don't release manual resources)
+            For Each ext In _allowedImageExtensions
+                Dim imagePath As String = Path.Combine(ImageFolder, gameName & ext)
+                If File.Exists(imagePath) Then
+                    PrepareForFileOperation()
+                    Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                    imagePath,
+                    Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                    Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin)
+                End If
+            Next
+
+            ' Delete manual file (don't release image resources)
+            Dim manualPath As String = Path.Combine(ManualFolder, gameName & ".txt")
+            If File.Exists(manualPath) Then
+                PrepareForFileOperation()
+                Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
+                manualPath,
+                Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
+                Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin)
+            End If
+
+            ' Store the count before reloading
+            Dim itemCountBeforeDelete As Integer = ListBox1.Items.Count
+
+            ' Reload the game list
+            LoadGames()
+
+            ' Determine which item to select after deletion
+            If ListBox1.Items.Count > 0 Then
+                ' If we deleted the last item, select the new last item
+                If currentIndex >= ListBox1.Items.Count Then
+                    ListBox1.SelectedIndex = ListBox1.Items.Count - 1
+                Else
+                    ' Otherwise select the item that was in the next position
+                    ListBox1.SelectedIndex = currentIndex
+                End If
+            End If
+
+            MessageBox.Show("Game deleted successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Catch ex As Exception
+            MessageBox.Show($"Error deleting game: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
 
     Private Sub TerminateAllChildProcesses()
@@ -282,6 +734,10 @@ Public Class Form1
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         SaveLastGame()
         TerminateAllChildProcesses()
+
+        If _gameFolderWatcher IsNot Nothing Then
+            _gameFolderWatcher.Dispose()
+        End If
     End Sub
 
     Private Sub SaveLastGame()
@@ -292,13 +748,13 @@ Public Class Form1
 
         Dim currentGame = If(ListBox1.SelectedItem?.ToString(), "")
 
-            If lines.Count >= 5 Then
-                lines(4) = currentGame
-            Else
-                lines.Add(currentGame)
-            End If
+        If lines.Count >= 5 Then
+            lines(4) = currentGame
+        Else
+            lines.Add(currentGame)
+        End If
 
-            File.WriteAllLines(_settingsFilePath, lines)
+        File.WriteAllLines(_settingsFilePath, lines)
     End Sub
 
     Private Sub ListBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListBox1.SelectedIndexChanged
@@ -307,8 +763,6 @@ Public Class Form1
         Dim selectedGame As String = ListBox1.SelectedItem.ToString()
         StartScrollingText(selectedGame)
 
-
-        ' Start scrolling if needed
         If selectedGame.Length > DISPLAY_CHARS Then
             scrollTimer.Start()
         End If
@@ -316,26 +770,50 @@ Public Class Form1
         ResetBlockLabels()
         RunDeleteTempFiles()
 
-        ' Load game image
-        Try
-            PictureBox1.Image = Nothing
-            Dim imageExtensions As String() = {".png", ".jpg", ".gif"}
-            Dim imagePath = imageExtensions.
-                Select(Function(ext) Path.Combine(ImageFolder, selectedGame & ext)).
-                FirstOrDefault(Function(path) File.Exists(path))
+        ' Always reload assets when selection changes
+        LoadGameAssets(selectedGame)
+        _lastSelectedGame = selectedGame
+    End Sub
 
+    Private Sub LoadGameAssets(gameName As String)
+        ' Load game image
+        Dim imagePath = _allowedImageExtensions.
+            Select(Function(ext) Path.Combine(ImageFolder, gameName & ext)).
+            FirstOrDefault(Function(path) File.Exists(path))
+
+        Try
+            ReleaseImageResources()
             If imagePath IsNot Nothing Then
-                PictureBox1.Image = Image.FromFile(imagePath)
+                ' Create a copy of the image to avoid file locking
+                Dim imageBytes As Byte() = File.ReadAllBytes(imagePath)
+                Using ms As New MemoryStream(imageBytes)
+                    PictureBox1.Image = Image.FromStream(ms)
+                End Using
+                _currentImagePath = imagePath
+                PictureBox1.SizeMode = PictureBoxSizeMode.Zoom
+            Else
+                PictureBox1.Image = Nothing
+                PictureBox1.SizeMode = PictureBoxSizeMode.Normal
             End If
-            PictureBox1.SizeMode = PictureBoxSizeMode.Zoom
         Catch ex As Exception
             PictureBox1.Image = Nothing
             PictureBox1.SizeMode = PictureBoxSizeMode.Normal
         End Try
 
         ' Load manual
-        Dim manualPath As String = Path.Combine(ManualFolder, selectedGame & ".txt")
-        RichTextBox1.Text = If(File.Exists(manualPath), File.ReadAllText(manualPath), "No manual available.")
+        Dim manualPath As String = Path.Combine(ManualFolder, gameName & ".txt")
+        Try
+            If File.Exists(manualPath) Then
+                RichTextBox1.Text = File.ReadAllText(manualPath)
+                _currentManualPath = manualPath
+            Else
+                RichTextBox1.Text = "No manual available."
+                _currentManualPath = ""
+            End If
+        Catch ex As Exception
+            RichTextBox1.Text = "Unable to load manual"
+            _currentManualPath = ""
+        End Try
     End Sub
 
     Private Sub SearchBox_TextChanged(sender As Object, e As EventArgs) Handles SearchBox.TextChanged
@@ -466,7 +944,6 @@ Public Class Form1
     End Sub
 
     Private Sub BtnEject_Click(sender As Object, e As EventArgs) Handles BtnEject.Click
-        ' Stop playback if running
         If uefPlayProcess IsNot Nothing AndAlso Not uefPlayProcess.HasExited Then
             File.WriteAllText(controlFilePath, "stop")
             Try
@@ -489,7 +966,6 @@ Public Class Form1
         tapeCounterTimer.Stop()
         ResetBlockLabels()
         RunDeleteTempFiles()
-
     End Sub
 
     Private Sub BtnCounterReset_Click(sender As Object, e As EventArgs) Handles BtnCounterReset.Click
@@ -713,4 +1189,91 @@ Public Class Form1
             Return 0
         End Try
     End Function
+
+    ' Drag-Drop functionality for PictureBox (images)
+    Private Sub PictureBox1_DragEnter(sender As Object, e As DragEventArgs) Handles PictureBox1.DragEnter
+        If Not _editModeEnabled Then
+            e.Effect = DragDropEffects.None
+            Return
+        End If
+
+        If e.Data.GetDataPresent(DataFormats.FileDrop) Then
+            Dim files() As String = CType(e.Data.GetData(DataFormats.FileDrop), String())
+            If files.Length = 1 AndAlso _allowedImageExtensions.Contains(Path.GetExtension(files(0)).ToLower()) Then
+                e.Effect = DragDropEffects.Copy
+            Else
+                e.Effect = DragDropEffects.None
+            End If
+        Else
+            e.Effect = DragDropEffects.None
+        End If
+    End Sub
+
+    Private Sub PictureBox1_DragDrop(sender As Object, e As DragEventArgs) Handles PictureBox1.DragDrop
+        If Not _editModeEnabled OrElse ListBox1.SelectedIndex = -1 Then
+            MessageBox.Show("Please enable Edit Mode and select a game first!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim files() As String = CType(e.Data.GetData(DataFormats.FileDrop), String())
+        If files.Length = 0 Then Return
+
+        Try
+            Dim selectedGame As String = ListBox1.SelectedItem.ToString()
+            Dim sourceFile = files(0)
+            Dim destPath As String = Path.Combine(ImageFolder, selectedGame & Path.GetExtension(sourceFile).ToLower())
+
+            SafeDeleteGameImage(selectedGame)
+
+            File.Copy(sourceFile, destPath, True)
+            PictureBox1.Image = Image.FromFile(destPath)
+            _currentImagePath = destPath
+            MessageBox.Show($"Image saved as {Path.GetFileName(destPath)}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Catch ex As Exception
+            MessageBox.Show($"Error saving image: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
+
+    ' Drag-Drop functionality for RichTextBox (manuals)
+    Private Sub RichTextBox1_DragEnter(sender As Object, e As DragEventArgs) Handles RichTextBox1.DragEnter
+        If Not _editModeEnabled Then
+            e.Effect = DragDropEffects.None
+            Return
+        End If
+
+        If e.Data.GetDataPresent(DataFormats.FileDrop) Then
+            Dim files() As String = CType(e.Data.GetData(DataFormats.FileDrop), String())
+            If files.Length = 1 AndAlso _allowedManualExtensions.Contains(Path.GetExtension(files(0)).ToLower()) Then
+                e.Effect = DragDropEffects.Copy
+            Else
+                e.Effect = DragDropEffects.None
+            End If
+        Else
+            e.Effect = DragDropEffects.None
+        End If
+    End Sub
+
+    Private Sub RichTextBox1_DragDrop(sender As Object, e As DragEventArgs) Handles RichTextBox1.DragDrop
+        If Not _editModeEnabled OrElse ListBox1.SelectedIndex = -1 Then
+            MessageBox.Show("Please enable Edit Mode and select a game first!", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim files() As String = CType(e.Data.GetData(DataFormats.FileDrop), String())
+        If files.Length = 0 Then Return
+
+        Try
+            Dim selectedGame As String = ListBox1.SelectedItem.ToString()
+            Dim destPath As String = Path.Combine(ManualFolder, selectedGame & ".txt")
+
+            SafeDeleteManual(selectedGame)
+
+            File.Copy(files(0), destPath, True)
+            RichTextBox1.Text = File.ReadAllText(destPath)
+            _currentManualPath = destPath
+            MessageBox.Show($"Manual saved as {Path.GetFileName(destPath)}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Catch ex As Exception
+            MessageBox.Show($"Error saving manual: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+    End Sub
 End Class
