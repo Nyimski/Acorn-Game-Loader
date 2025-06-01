@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.2.1 - 2025-06-01
+
+### Bug Fixes
+- Resolved issue where the UI did not return to the last selected game in v1.2.0.
+
+### Improved
+
+- Removed DeleteTempFiles.bat; temporary file cleanup is now handled directly by Form1.vb.
+- 
 ## v1.2.0 - 2025-06-01
 
 ### Added
