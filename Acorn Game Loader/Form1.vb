@@ -49,9 +49,7 @@ Public Class Form1
     Private scrollIndex As Integer = 0
     Private Const DISPLAY_CHARS As Integer = 78
 
-    ' =============================================
     ' Edit Mode Management
-    ' =============================================
 
     Private Sub ToggleEditMode(enable As Boolean)
         _editModeEnabled = enable
@@ -77,9 +75,7 @@ Public Class Form1
         ToggleEditMode(Not _editModeEnabled)
     End Sub
 
-    ' =============================================
     ' Resource Management Methods
-    ' =============================================
 
     Private Sub ReleaseImageResources()
         If PictureBox1.Image IsNot Nothing Then
@@ -101,9 +97,7 @@ Public Class Form1
         Application.DoEvents()
     End Sub
 
-    ' =============================================
     ' Safe File Operations
-    ' =============================================
 
     Public Function SafeDeleteFile(filePath As String, Optional maxRetries As Integer = 2) As Boolean
         For retry = 1 To maxRetries
@@ -155,9 +149,7 @@ Public Class Form1
         End Try
     End Function
 
-    ' =============================================
     ' Drag-and-Drop Handlers (with Edit Mode check)
-    ' =============================================
 
     Private Sub ListBox1_DragEnter(sender As Object, e As DragEventArgs) Handles ListBox1.DragEnter
         If Not _editModeEnabled Then

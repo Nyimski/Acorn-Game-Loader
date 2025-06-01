@@ -14,6 +14,7 @@
     <None Remove="DeleteTempFiles.bat" />
     <None Remove="Icon.ico" />
     <None Remove="Instructions.txt" />
+    <None Remove="LICENSE.txt" />
     <None Remove="savegame.py" />
     <None Remove="uefplay.py" />
   </ItemGroup>
@@ -24,6 +25,9 @@
     </Content>
     <Content Include="Icon.ico" />
     <Content Include="Instructions.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="LICENSE.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="savegame.py">
