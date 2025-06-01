@@ -42,7 +42,7 @@ Partial Class AboutForm
         Label1.Name = "Label1"
         Label1.Size = New Size(207, 21)
         Label1.TabIndex = 0
-        Label1.Text = "Acorn Game Loader v1.2.0"
+        Label1.Text = "Acorn Game Loader v1.2.1"
         ' 
         ' lblWebsite
         ' 

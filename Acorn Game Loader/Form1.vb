@@ -310,7 +310,7 @@ Public Class Form1
     Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.StartPosition = FormStartPosition.Manual
         Me.Location = New Point(Screen.PrimaryScreen.WorkingArea.Left, Screen.PrimaryScreen.WorkingArea.Top)
-        Me.Text = "Acorn Game Loader - v1.2.0"
+        Me.Text = "Acorn Game Loader - v1.2.1"
         Me.Icon = New Icon(Me.GetType(), "Icon.ico")
 
         ' Initialize with Edit Mode OFF by default
@@ -323,15 +323,36 @@ Public Class Form1
         InitializeGameFolderWatcher()
         InitializeContextMenu()
 
+        ' Initialize the timer (but don't start it yet)
+        tapeCounterTimer = New Timer() With {.Interval = 1000}
+        AddHandler tapeCounterTimer.Tick, AddressOf UpdateTapeCounter
+
+        ' Load games first
+        LoadGames()
+
+        ' Then try to restore last selected game if setting is enabled
         If File.Exists(_settingsFilePath) Then
             Dim lines() As String = File.ReadAllLines(_settingsFilePath)
-            If lines.Length >= 5 AndAlso Boolean.Parse(lines(3)) Then
-                _lastSelectedGame = lines(4)
+            If lines.Length >= 5 AndAlso Boolean.Parse(lines(3)) AndAlso Not String.IsNullOrEmpty(lines(4)) Then
+                Dim lastGame = lines(4)
+                If _allGames.Contains(lastGame) Then
+                    Dim index = ListBox1.Items.IndexOf(lastGame)
+                    If index >= 0 Then
+                        ListBox1.SelectedIndex = index
+                        ' Force load the assets for the selected game
+                        _lastSelectedGame = "" ' Reset to force reload
+                        ListBox1_SelectedIndexChanged(ListBox1, EventArgs.Empty)
+                        Return
+                    End If
+                End If
             End If
         End If
 
-        LoadGames()
-        AddHandler tapeCounterTimer.Tick, AddressOf UpdateTapeCounter
+        ' If no last game or not found, select first item if available
+        If ListBox1.Items.Count > 0 Then
+            ListBox1.SelectedIndex = 0
+        End If
+
         AddHandler TimerResetStatus.Tick, AddressOf ResetStatusMessage
     End Sub
 
@@ -697,30 +718,24 @@ Public Class Form1
     End Sub
 
     Private Sub RunDeleteTempFiles()
-        Dim batchContent = "@echo off" & Environment.NewLine &
-                         "del ""%TEMP%\current_block.txt"" /F /Q" & Environment.NewLine &
-                         "del ""%TEMP%\total_blocks.txt"" /F /Q" & Environment.NewLine &
-                         "del ""%TEMP%\next_block.txt"" /F /Q" & Environment.NewLine &
-                         "del ""%TEMP%\uef_control.txt"" /F /Q" & Environment.NewLine &
-                         "del ""%TEMP%\save_status.txt"" /F /Q" & Environment.NewLine &
-                         "del ""%TEMP%\save_control.txt"" /F /Q"
+        Dim tempFilesToDelete As String() = {
+        Path.Combine(Path.GetTempPath(), "current_block.txt"),
+        Path.Combine(Path.GetTempPath(), "total_blocks.txt"),
+        Path.Combine(Path.GetTempPath(), "next_block.txt"),
+        Path.Combine(Path.GetTempPath(), "uef_control.txt"),
+        Path.Combine(Path.GetTempPath(), "save_status.txt"),
+        Path.Combine(Path.GetTempPath(), "save_control.txt")
+    }
 
-        Dim batchPath = Path.Combine(Path.GetTempPath(), "DeleteTempFiles.bat")
-        File.WriteAllText(batchPath, batchContent)
-
-        Dim psi As New ProcessStartInfo("cmd.exe", "/c """ & batchPath & """") With {
-            .UseShellExecute = False,
-            .CreateNoWindow = True
-        }
-
-        Using process As Process = Process.Start(psi)
-            process.WaitForExit(1000)
-        End Using
-
-        Try
-            File.Delete(batchPath)
-        Catch
-        End Try
+        For Each filePath In tempFilesToDelete
+            Try
+                If File.Exists(filePath) Then
+                    File.Delete(filePath)
+                End If
+            Catch ex As Exception
+                Debug.WriteLine($"Failed to delete temp file {filePath}: {ex.Message}")
+            End Try
+        Next
     End Sub
 
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
@@ -752,6 +767,11 @@ Public Class Form1
     Private Sub ListBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListBox1.SelectedIndexChanged
         If ListBox1.SelectedIndex = -1 Then Exit Sub
 
+        ' Stop the timer if it's running
+        If tapeCounterTimer.Enabled Then
+            tapeCounterTimer.Stop()
+        End If
+
         Dim selectedGame As String = ListBox1.SelectedItem.ToString()
         StartScrollingText(selectedGame)
 
@@ -765,6 +785,11 @@ Public Class Form1
         ' Always reload assets when selection changes
         LoadGameAssets(selectedGame)
         _lastSelectedGame = selectedGame
+
+        ' If a game is playing, restart the timer
+        If uefPlayProcess IsNot Nothing AndAlso Not uefPlayProcess.HasExited Then
+            tapeCounterTimer.Start()
+        End If
     End Sub
 
     Private Sub LoadGameAssets(gameName As String)
@@ -825,7 +850,7 @@ Public Class Form1
 
             Dim selectedGame As String = ListBox1.SelectedItem.ToString()
             Dim gameFile = Directory.GetFiles(GameFolder, selectedGame & ".*", SearchOption.AllDirectories).
-                          FirstOrDefault(Function(f) f.EndsWith(".uef"))
+                      FirstOrDefault(Function(f) f.EndsWith(".uef"))
 
             If gameFile Is Nothing Then
                 MessageBox.Show("Game file not found!", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
@@ -836,13 +861,13 @@ Public Class Form1
                 If File.Exists(controlFilePath) Then File.Delete(controlFilePath)
 
                 Dim startInfo As New ProcessStartInfo() With {
-                    .FileName = Path.Combine(Application.StartupPath, "python", "python.exe"),
-                    .Arguments = $"""{Path.Combine(Application.StartupPath, "uefplay.py")}"" ""{gameFile}""",
-                    .UseShellExecute = False,
-                    .CreateNoWindow = True,
-                    .RedirectStandardError = True,
-                    .RedirectStandardOutput = True
-                }
+                .FileName = Path.Combine(Application.StartupPath, "python", "python.exe"),
+                .Arguments = $"""{Path.Combine(Application.StartupPath, "uefplay.py")}"" ""{gameFile}""",
+                .UseShellExecute = False,
+                .CreateNoWindow = True,
+                .RedirectStandardError = True,
+                .RedirectStandardOutput = True
+            }
 
                 uefPlayProcess = Process.Start(startInfo)
                 _childProcesses.Add(uefPlayProcess)
@@ -864,21 +889,32 @@ Public Class Form1
 
                 ListBox1.Enabled = False
                 tapeCounter = 0
-                tapeCounterTimer.Start()
                 totalBlocks = GetTotalBlocks()
                 isStopped = False
                 BtnStop.Text = "Stop"
                 zeroedBlock = 0
                 LblZeroedBlock.Text = "Reset at Block: 0"
+
+                ' Ensure the timer is properly started
+                tapeCounterTimer.Stop() ' Stop if already running
+                tapeCounterTimer.Start() ' Start fresh
+
+                ' Force an immediate UI update
+                UpdateTapeCounter(Me, EventArgs.Empty)
+
             Catch ex As Exception
                 MessageBox.Show($"Failed to start Python script: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                tapeCounterTimer.Stop() ' Ensure timer is stopped if there's an error
             End Try
         Else
             If isStopped Then
                 File.WriteAllText(controlFilePath, "resume")
                 isStopped = False
                 BtnStop.Text = "Stop"
-                tapeCounterTimer.Start()
+                tapeCounterTimer.Start() ' Restart the timer when resuming
+
+                ' Force an immediate UI update
+                UpdateTapeCounter(Me, EventArgs.Empty)
             End If
         End If
     End Sub
