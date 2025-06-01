@@ -8,7 +8,7 @@
 ### Improved
 
 - Removed DeleteTempFiles.bat; temporary file cleanup is now handled directly by Form1.vb.
-- 
+
 ## v1.2.0 - 2025-06-01
 
 ### Added
